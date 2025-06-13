@@ -1,16 +1,53 @@
-RegisterCommand("radio", function(source, args)
-    local channel = tonumber(args[1])
+local uiOpen = false
+local isAuthorized = false
+
+RegisterCommand("toggleRadioUI", function()
+    if not isAuthorized then
+        TriggerEvent("chat:addMessage", {
+            args = { "[Radio]", "^1Access denied. You are not a FivePD officer." }
+        })
+        return
+    end
+
+    uiOpen = not uiOpen
+    SetNuiFocus(uiOpen, uiOpen)
+    SendNUIMessage({ action = "toggle", state = uiOpen })
+end)
+
+RegisterKeyMapping("toggleRadioUI", "Toggle Police Radio UI", "keyboard", "F3")
+
+RegisterNUICallback("joinRadio", function(data, cb)
+    local channel = tonumber(data.channel)
     if channel then
         exports["pma-voice"]:setRadioChannel(channel)
         TriggerEvent("chat:addMessage", {
-            color = {0, 255, 0},
-            args = {"[Radio]", "You switched to channel " .. channel}
-        })
-    else
-        exports["pma-voice"]:setRadioChannel(0)
-        TriggerEvent("chat:addMessage", {
-            color = {255, 0, 0},
-            args = {"[Radio]", "Left radio channel"}
+            args = { "[Radio]", "Joined radio channel " .. channel }
         })
     end
-end, false)
+    cb("ok")
+end)
+
+RegisterNUICallback("leaveRadio", function(_, cb)
+    exports["pma-voice"]:setRadioChannel(0)
+    TriggerEvent("chat:addMessage", {
+        args = { "[Radio]", "Left radio channel" }
+    })
+    cb("ok")
+end)
+
+RegisterNUICallback("close", function(_, cb)
+    SetNuiFocus(false, false)
+    SendNUIMessage({ action = "toggle", state = false })
+    uiOpen = false
+    cb("ok")
+end)
+
+RegisterNetEvent("radio:authResult", function(auth)
+    isAuthorized = auth
+    print("[Radio Client] Authorized:", auth)
+end)
+
+AddEventHandler('playerSpawned', function()
+    Wait(2000)
+    TriggerServerEvent("radio:checkFivePDStatus")
+end)
