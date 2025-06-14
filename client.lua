@@ -11,7 +11,6 @@ local function playRadioClick()
     PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
 end
 
--- Load animation dictionary
 local function loadAnimDict(dict)
     RequestAnimDict(dict)
     while not HasAnimDictLoaded(dict) do
@@ -19,26 +18,20 @@ local function loadAnimDict(dict)
     end
 end
 
--- Play radio talking animation
 local function startRadioAnim()
     playerPed = PlayerPedId()
     loadAnimDict(radioAnimDict)
-
-    -- Start with 'enter' animation (optional but smooth)
     TaskPlayAnim(playerPed, radioAnimDict, radioEnterAnim, 8.0, -8.0, 500, 49, 0, false, false, false)
-
-    -- Wait a bit then play looping chatter anim
     Wait(500)
     TaskPlayAnim(playerPed, radioAnimDict, radioChatterAnim, 8.0, -8.0, -1, 49, 0, false, false, false)
 end
 
--- Stop the animation
 local function stopRadioAnim()
     ClearPedSecondaryTask(PlayerPedId())
 end
 
--- Listen to voice radio state from pma-voice
-RegisterNetEvent("pma-voice:radioActive", function(talking)
+RegisterNetEvent("pma-voice:radioActive")
+AddEventHandler("pma-voice:radioActive", function(talking)
     if talking and not isTalkingOnRadio then
         isTalkingOnRadio = true
         startRadioAnim()
@@ -48,24 +41,40 @@ RegisterNetEvent("pma-voice:radioActive", function(talking)
     end
 end)
 
--- Command to toggle radio UI
-RegisterCommand("toggleRadioUI", function()
-    -- Force re-check on every toggle attempt
-    isAuthChecked = false
-    TriggerServerEvent("radio:checkFivePDStatus")
-
-    TriggerEvent("chat:addMessage", {
-        args = { "[Radio]", "^3Checking your FivePD status..." }
-    })
-end)
-
--- Register keybind (F3) for toggleRadioUI
-RegisterKeyMapping("toggleRadioUI", "Toggle Police Radio UI", "keyboard", "F3")
-
-RegisterNUICallback("joinRadio", function(data, cb)
+-- Toggle UI function
+local function toggleRadioUI()
     if not isAuthorized then
         TriggerEvent("chat:addMessage", {
             args = { "[Radio]", "^1Access denied. You are not an on-duty FivePD officer." }
+        })
+        return
+    end
+
+    uiOpen = not uiOpen
+    SetNuiFocus(uiOpen, uiOpen)
+    SendNUIMessage({ action = "toggle", state = uiOpen })
+end
+
+-- Command to trigger toggle, only toggle if authorized
+RegisterCommand("toggleRadioUI", function()
+    if not isAuthChecked then
+        TriggerServerEvent("radio:checkFivePDStatus")
+        TriggerEvent("chat:addMessage", {
+            args = { "[Radio]", "^3Checking your FivePD status..." }
+        })
+        return
+    end
+
+    toggleRadioUI()
+end)
+
+RegisterKeyMapping("toggleRadioUI", "Toggle Police Radio UI", "keyboard", "F3")
+
+-- NUI Callbacks
+RegisterNUICallback("joinRadio", function(data, cb)
+    if not isAuthorized then
+        TriggerEvent("chat:addMessage", {
+            args = { "[Radio]", "^1Access denied. You are not on-duty." }
         })
         cb("unauthorized")
         return
@@ -91,37 +100,40 @@ RegisterNUICallback("leaveRadio", function(_, cb)
 end)
 
 RegisterNUICallback("close", function(_, cb)
+    uiOpen = false
     SetNuiFocus(false, false)
     SendNUIMessage({ action = "toggle", state = false })
-    uiOpen = false
     cb("ok")
 end)
 
--- Handle server response to authorization check
+-- Server response to auth check
 RegisterNetEvent("radio:authResult")
 AddEventHandler("radio:authResult", function(authorized, department)
     isAuthorized = authorized
     isAuthChecked = true
-    playerDepartment = department
     print("[Radio Client] Authorized:", authorized, "Department:", department or "None")
 
-    if isAuthorized then
-        uiOpen = true
+    if isAuthorized and uiOpen then
+        -- If UI was open (e.g. tried to open before auth), open it now
         SetNuiFocus(true, true)
         SendNUIMessage({ action = "toggle", state = true })
-    else
+    elseif not isAuthorized and uiOpen then
+        -- Close UI if unauthorized
+        uiOpen = false
+        SetNuiFocus(false, false)
+        SendNUIMessage({ action = "toggle", state = false })
         TriggerEvent("chat:addMessage", {
             args = { "[Radio]", "^1Access denied. You are not a FivePD officer." }
         })
     end
 end)
 
--- On player spawn, reset auth and check again after 2 seconds
+-- Reset authorization and UI on player spawn
 AddEventHandler('playerSpawned', function()
     isAuthorized = false
     isAuthChecked = false
-    Citizen.SetTimeout(2000, function()
-        print("[Radio Client] Requesting FivePD status check...")
-        TriggerServerEvent("radio:checkFivePDStatus")
-    end)
+    uiOpen = false
+    SetNuiFocus(false, false)
+    SendNUIMessage({ action = "toggle", state = false })
+    TriggerServerEvent("radio:checkFivePDStatus")
 end)
