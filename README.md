@@ -60,7 +60,3 @@ This resource lets on-duty FivePD officers join and leave voice radio channels t
 ## License
 
 MIT License — feel free to modify and use as you like in your FiveM projects.
-
----
-
-If you want help generating full scripts or folder structures, just ask!
