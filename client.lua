@@ -5,7 +5,7 @@ local isTalkingOnRadio = false
 local playerPed = PlayerPedId()
 local radioAnimDict = "random@arrests"
 local radioEnterAnim = "generic_radio_enter"
-local radioChatterAnim = "radio_chatter"
+local radioChatterAnim = "generic_radio_chatter"
 
 local function playRadioClick()
     PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
@@ -21,8 +21,7 @@ end
 local function startRadioAnim()
     playerPed = PlayerPedId()
     loadAnimDict(radioAnimDict)
-    TaskPlayAnim(playerPed, radioAnimDict, radioEnterAnim, 8.0, -8.0, 500, 49, 0, false, false, false)
-    Wait(500)
+
     TaskPlayAnim(playerPed, radioAnimDict, radioChatterAnim, 8.0, -8.0, -1, 49, 0, false, false, false)
 end
 
@@ -41,7 +40,6 @@ AddEventHandler("pma-voice:radioActive", function(talking)
     end
 end)
 
--- Toggle UI function
 local function toggleRadioUI()
     if not isAuthorized then
         TriggerEvent("chat:addMessage", {
@@ -55,7 +53,6 @@ local function toggleRadioUI()
     SendNUIMessage({ action = "toggle", state = uiOpen })
 end
 
--- Command to trigger toggle, only toggle if authorized
 RegisterCommand("toggleRadioUI", function()
     if not isAuthChecked then
         TriggerServerEvent("radio:checkFivePDStatus")
@@ -70,7 +67,6 @@ end)
 
 RegisterKeyMapping("toggleRadioUI", "Toggle Police Radio UI", "keyboard", "F3")
 
--- NUI Callbacks
 RegisterNUICallback("joinRadio", function(data, cb)
     if not isAuthorized then
         TriggerEvent("chat:addMessage", {
@@ -106,7 +102,6 @@ RegisterNUICallback("close", function(_, cb)
     cb("ok")
 end)
 
--- Server response to auth check
 RegisterNetEvent("radio:authResult")
 AddEventHandler("radio:authResult", function(authorized, department)
     isAuthorized = authorized
@@ -114,11 +109,9 @@ AddEventHandler("radio:authResult", function(authorized, department)
     print("[Radio Client] Authorized:", authorized, "Department:", department or "None")
 
     if isAuthorized and uiOpen then
-        -- If UI was open (e.g. tried to open before auth), open it now
         SetNuiFocus(true, true)
         SendNUIMessage({ action = "toggle", state = true })
     elseif not isAuthorized and uiOpen then
-        -- Close UI if unauthorized
         uiOpen = false
         SetNuiFocus(false, false)
         SendNUIMessage({ action = "toggle", state = false })
@@ -128,7 +121,6 @@ AddEventHandler("radio:authResult", function(authorized, department)
     end
 end)
 
--- Reset authorization and UI on player spawn
 AddEventHandler('playerSpawned', function()
     isAuthorized = false
     isAuthChecked = false
